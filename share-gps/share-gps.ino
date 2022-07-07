@@ -6,7 +6,7 @@ const char* password = "***"; // your network password
 
 
 const IPAddress server = IPAddress(192, 168, 52, 141);  // Server IP address
-const int port = 2947; // server's port (8883 for MQTT) 1883
+const int port = 2947; // GPSD server's port 
 const String query ="?SHGPS.LOCATION;\r\n";
 
 
@@ -43,7 +43,6 @@ void loop() {
   }
   
   client.print("?SHGPS.LOCATION;\r\n");
-
   
   int maxloops = 0;
 
@@ -60,6 +59,7 @@ void loop() {
   
   Serial.println("Conected to client, awaiting for response.");
 
+  // When connected, we receive a version json thaat we need to read before we can retreive the location info.
   while (client.connected()) {
     String line = client.readStringUntil('\n');
     if (line.indexOf("VERSION")!=-1) {
@@ -68,6 +68,7 @@ void loop() {
       break;
     }
   }
+  // This string should countain the location
   String msg = client.readStringUntil('\r');
   
   Serial.println("Msg is:");
