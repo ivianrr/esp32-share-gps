@@ -1,0 +1,3 @@
+# https://stackoverflow.com/a/20241145/15481027
+# git update-index --skip-worktree share-gps/config.h
+*/config.h
