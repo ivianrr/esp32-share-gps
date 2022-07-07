@@ -1,8 +1,9 @@
 #include <WiFi.h>
+#include "config.h"
 
 
-const char* ssid     = "***";     // your network SSID (name of wifi network)
-const char* password = "***"; // your network password
+const char* ssid     = WIFI_SSID;     // your network SSID (name of wifi network)
+const char* password = WIFI_PASSWORD; // your network password
 
 
 const IPAddress server = IPAddress(192, 168, 52, 141);  // Server IP address
