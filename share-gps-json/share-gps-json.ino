@@ -7,7 +7,7 @@ const char* ssid     = WIFI_SSID;     // your network SSID (name of wifi network
 const char* password = WIFI_PASSWORD; // your network password
 
 
-const IPAddress server = IPAddress(192, 168, 52, 141);  // Server IP address
+const IPAddress server = IPAddress(192, 168, 233, 209);  // Server IP address
 const int port = 2947; // GPSD server's port 
 const String query ="?SHGPS.LOCATION;\r\n";
 
@@ -104,6 +104,6 @@ void loop() {
   Serial.print("Longitude: ");
   Serial.println(longi, 4);
   
-  Serial.println("Waiting 5 seconds before restarting...");
+  Serial.println("Waiting 10 seconds before restarting...");
   delay(10000);
 }
