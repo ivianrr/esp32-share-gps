@@ -1,3 +1,4 @@
 # https://stackoverflow.com/a/20241145/15481027
 # git update-index --skip-worktree share-gps/config.h
+# git update-index --no-skip-worktree <file>
 */config.h
