@@ -37,7 +37,7 @@ const char *status_topic = "home/esp32gps/status"; // Optional topic that shows 
 const char *data_topic = "home/esp32gps/data";     // Topic for the data (Nodered should subscribe to this topic if data is to be stored in a db).
 const char *ip_topic = "home/esp32gps/ip";         // Topic that has the GPSD IP address retained as a a string.
 
-IPAddress server = IPAddress(192, 168, 78, 61); // Provisional server IP address. UPdating via mqtt can be avoided if this address is correct. However, Android devices reset it randomly.
+IPAddress server = IPAddress(192, 168, 78, 61); // Provisional server IP address. Updating via MQTT can be avoided if this address is correct. However, in Android devices it resets randomly.
 const int port = 2947;                          // GPSD server's port
 const String query = "?SHGPS.LOCATION;\r\n";
 
@@ -254,7 +254,7 @@ void loop()
   Serial.println("Done");
 
   Serial.println("Waiting 2 seconds before restarting...");
-  delay(2000); // At least 2 seconds between measurements, although lora beacon should have a longer period anyway.
+  delay(2000); // At least 2 seconds between measurements, although LoRa beacon should have a longer period anyway.
 }
 
 void callback(const MQTT::Publish &pub)

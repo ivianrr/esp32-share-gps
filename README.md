@@ -14,4 +14,4 @@ Remember to update the IP address of your phone as well.
 In the app, add a GPSD connection (leave the default port as 2947) and click on it to enable it. It should turn from `Idle` to `Listening`.
 For more info about setting up the app, [this repo](https://github.com/franckalbinet/iot-uaa-isoc/blob/master/labs/lora-coverage.md) can be helpful even though it is intended for LoPy.
 
-After flashing the ESP32, the serial monitor should start displaying the GPS coordinates of the phone and a some debug information.
+After flashing the ESP32, the serial monitor should start displaying the GPS coordinates of the phone and some debug information.
