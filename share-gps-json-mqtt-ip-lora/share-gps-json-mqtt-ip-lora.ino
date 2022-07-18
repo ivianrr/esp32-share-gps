@@ -31,35 +31,64 @@ String packet;
 const char *ssid = WIFI_SSID;         // your network SSID (name of wifi network)
 const char *password = WIFI_PASSWORD; // your network password
 
-const char *mqtt_server = MQTT_SERVER; 
-const char *status_topic = "home/esp32gps/status";
-const char *data_topic = "home/esp32gps/data";
-const char *ip_topic = "home/esp32gps/ip";
+const char *mqtt_server = MQTT_SERVER;             // Address of the MQTT server to which measurements are sent
+                                                   // and from wich GPSD server IP address is retrieved
+const char *status_topic = "home/esp32gps/status"; // Optional topic that shows if device has been connected during the last 30 seconds
+const char *data_topic = "home/esp32gps/data";     // Topic for the data (Nodered should subscribe to this topic if data is to be stored in a db).
+const char *ip_topic = "home/esp32gps/ip";         // Topic that has the GPSD IP address retained as a a string.
 
-IPAddress server = IPAddress(192, 168, 78, 61); // Server IP address
+IPAddress server = IPAddress(192, 168, 78, 61); // Provisional server IP address. UPdating via mqtt can be avoided if this address is correct. However, Android devices reset it randomly.
 const int port = 2947;                          // GPSD server's port
 const String query = "?SHGPS.LOCATION;\r\n";
 
 WiFiClient client;
 PubSubClient mqttclient(client);
 
+/**
+ * MQTT callback function. Only called when the GPSD server IP is updated via ip_topic.
+ * @param pub Received published message.
+ */
 void callback(const MQTT::Publish &pub);
 
+/**
+ * Reconnect to MQTT server.
+ */
 void reconnect();
 
+/**
+ * Connect to MQTT and wait for IP. Update server global variable with new IPAddress object.
+ */
 void gpsreconnect();
 
+/**
+ * Split IP inside String and construct an IPAddress with it.
+ *
+ * @param ipstr Address string in "111.222.333.444" format or similar.
+ * @return IPAddress object
+ */
 IPAddress ip_from_str(String ipstr);
 
+/**
+ * Read LoRa message and call loraData to display it.
+ *
+ * @param packetSize Size of the packet in bytes.
+ */
+void cbk(int packetSize);
+
+/**
+ * Display LoRa data of last received message.
+ */
 void loraData();
 
+/**
+ * Show a message in the OLEd screen during initiallization.
+ *
+ * @param msg Message to output.
+ */
 void displaymsg(String msg);
-
-void cbk(int packetSize);
 
 void setup()
 {
-  // put your setup code here, to run once:
   pinMode(16, OUTPUT);
   digitalWrite(16, LOW); // set GPIO16 low to reset OLED
   delay(50);
@@ -87,11 +116,12 @@ void setup()
   display.flipScreenVertically();
   display.setFont(ArialMT_Plain_10);
 
-  displaymsg("Lora init OK.");
+  displaymsg("Lora init OK. Looking for WiFi.");
 
   Serial.print("Attempting to connect to SSID: ");
   Serial.println(ssid);
   WiFi.begin(ssid, password);
+
   // attempt to connect to Wifi network:
   while (WiFi.status() != WL_CONNECTED)
   {
@@ -102,11 +132,12 @@ void setup()
 
   Serial.print("Connected to ");
   Serial.println(ssid);
+  displaymsg("Connected to WiFi");
+
   mqttclient.set_server(mqtt_server, 1883);
   mqttclient.set_callback(callback);
   mqttclient.subscribe(ip_topic);
   mqttclient.loop();
-  displaymsg("Connected to WiFi");
 
   // Connect to MQTT server to get retained message with the ip address of the GPS server (Usually the hotspot phone)
   gpsreconnect();
@@ -118,6 +149,7 @@ void loop()
   int packetSize = LoRa.parsePacket();
   if (packetSize)
   {
+    // If msg is found, read it, display it and proceed with the rest of the code.
     cbk(packetSize);
   }
   else
@@ -125,6 +157,7 @@ void loop()
     delay(100);
     return;
   }
+
   Serial.print("Looking for GPSD server at ");
   Serial.print(server);
   Serial.print(":");
@@ -155,7 +188,7 @@ void loop()
 
   Serial.println("Conected to client, awaiting for response.");
 
-  // When connected, we receive a version json thaat we need to read before we can retreive the location info.
+  // When connected, we receive a version json that we need to read before we can retreive the location info.
   while (client.connected())
   {
     String line = client.readStringUntil('\n');
@@ -175,7 +208,7 @@ void loop()
   Serial.println("Closing connection.");
   client.stop();
 
-  // Parsing json and retreiving the coordinates.
+  // Parsing json and retrieving the coordinates.
   Serial.println("Parsing json...");
   StaticJsonDocument<300> doc;
   DeserializationError error = deserializeJson(doc, msg);
@@ -186,8 +219,12 @@ void loop()
     Serial.println(error.f_str());
     return;
   }
+
+  // Add the LoRa data to the json before forwarding it to the MQTT server
   doc["rssi"] = rssi_n;
   doc["sf"] = SF;
+
+  // Display GPS data via serial
   int gpsmode = doc["mode"];
   double alt = doc["alt"];
   double latit = doc["lat"];
@@ -217,7 +254,7 @@ void loop()
   Serial.println("Done");
 
   Serial.println("Waiting 2 seconds before restarting...");
-  delay(2000);
+  delay(2000); // At least 2 seconds between measurements, although lora beacon should have a longer period anyway.
 }
 
 void callback(const MQTT::Publish &pub)
