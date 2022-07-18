@@ -11,15 +11,16 @@
 
 #define DEVICENAME "esp32loragps"
 
-#define SCK 5   // GPIO5  -- SX1278's SCK
-#define MISO 19 // GPIO19 -- SX1278's MISO
-#define MOSI 27 // GPIO27 -- SX1278's MOSI
-#define SS 18   // GPIO18 -- SX1278's CS
-#define RST 23  // GPIO14 -- SX1278's RESET
-#define DI0 26  // GPIO26 -- SX1278's IRQ(Interrupt Request)
-#define BAND 868E6
-#define SF 9
-#define SBW 62.5E3
+#define SCK 5      // GPIO5  -- SX1278's SCK
+#define MISO 19    // GPIO19 -- SX1278's MISO
+#define MOSI 27    // GPIO27 -- SX1278's MOSI
+#define SS 18      // GPIO18 -- SX1278's CS
+#define RST 23     // GPIO14 -- SX1278's RESET
+#define DI0 26     // GPIO26 -- SX1278's IRQ(Interrupt Request)
+#define BAND 868E6 // Band depends on the region, for Europe it is 868E6 (868 MHz)
+#define SF 9       // Spreading factor, 6-12 default 7. Higher is slowwer but allows longer range.
+#define SBW 62.5E3 // Bandwidth, defaults to 125E3. Supported values are 7.8E3, 10.4E3,
+                   // 15.6E3, 20.8E3, 31.25E3, 41.7E3, 62.5E3, 125E3, and 250E3.
 
 SSD1306 display(0x3c, 21, 22);
 String rssi = "RSSI --";
@@ -30,7 +31,7 @@ String packet;
 const char *ssid = WIFI_SSID;         // your network SSID (name of wifi network)
 const char *password = WIFI_PASSWORD; // your network password
 
-const char *mqtt_server = MQTT_SERVER;
+const char *mqtt_server = MQTT_SERVER; 
 const char *status_topic = "home/esp32gps/status";
 const char *data_topic = "home/esp32gps/data";
 const char *ip_topic = "home/esp32gps/ip";
@@ -44,60 +45,17 @@ PubSubClient mqttclient(client);
 
 void callback(const MQTT::Publish &pub);
 
+void reconnect();
+
 void gpsreconnect();
 
-IPAddress ip_from_str(String ipstr)
-{
-  int a[4];
-  int i1 = 0;
-  int i2 = 0;
-  for (int i = 0; i < 4; i++)
-  {
-    i2 = ipstr.indexOf(".", i1);
-    if (i2 == -1)
-      i2 = ipstr.length();
-    a[i] = ipstr.substring(i1, i2).toInt();
-    i1 = i2 + 1;
-  }
-  return IPAddress(a[0], a[1], a[2], a[3]);
-}
+IPAddress ip_from_str(String ipstr);
 
-void loraData()
-{
-  display.clear();
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.setFont(ArialMT_Plain_10);
-  display.drawString(0, 15, "Received " + packSize + " bytes");
-  display.drawStringMaxWidth(0, 26, 128, packet);
-  display.drawString(0, 40, "SF: " + String(SF, DEC));
-  display.drawString(0, 0, rssi);
-  display.display();
-  Serial.println(rssi);
-}
+void loraData();
 
-void hellora(String msg)
-{
-  display.clear();
-  display.setTextAlignment(TEXT_ALIGN_LEFT);
-  display.setFont(ArialMT_Plain_10);
-  display.drawString(0, 0, "LoRa module connecting.");
-  display.drawString(0, 15, "Please wait.");
-  display.drawStringMaxWidth(0, 26, 128, msg);
-  display.display();
-}
+void displaymsg(String msg);
 
-void cbk(int packetSize)
-{
-  packet = "";
-  packSize = String(packetSize, DEC);
-  for (int i = 0; i < packetSize; i++)
-  {
-    packet += (char)LoRa.read();
-  }
-  rssi = "RSSI " + String(LoRa.packetRssi(), DEC);
-  rssi_n = LoRa.packetRssi();
-  loraData();
-}
+void cbk(int packetSize);
 
 void setup()
 {
@@ -109,7 +67,7 @@ void setup()
   Serial.begin(115200);
   delay(100);
 
-  Serial.println("LoRa Receiver Callback");
+  Serial.println("LoRa starting...");
   SPI.begin(SCK, MISO, MOSI, SS);
   LoRa.setPins(SS, RST, DI0);
   if (!LoRa.begin(868E6))
@@ -123,13 +81,13 @@ void setup()
   LoRa.setSignalBandwidth(SBW);
 
   // LoRa.onReceive(cbk);
-  // LoRa.receive(); //no es necesario
+  // LoRa.receive(); // not needed
   Serial.println("init ok");
   display.init();
   display.flipScreenVertically();
   display.setFont(ArialMT_Plain_10);
 
-  hellora("Lora init OK.");
+  displaymsg("Lora init OK.");
 
   Serial.print("Attempting to connect to SSID: ");
   Serial.println(ssid);
@@ -148,13 +106,15 @@ void setup()
   mqttclient.set_callback(callback);
   mqttclient.subscribe(ip_topic);
   mqttclient.loop();
-  hellora("Connected to WiFi");
+  displaymsg("Connected to WiFi");
+
+  // Connect to MQTT server to get retained message with the ip address of the GPS server (Usually the hotspot phone)
   gpsreconnect();
 }
 
 void loop()
 {
-  // put your main code here, to run repeatedly:
+  // Poll every 100 ms for new messages, if there are none skip the rest of the code.
   int packetSize = LoRa.parsePacket();
   if (packetSize)
   {
@@ -313,7 +273,7 @@ void reconnect()
 
 void gpsreconnect()
 {
-  hellora("Connecting to GPS...");
+  displaymsg("Connecting to GPS...");
 
   Serial.println("Trying  to connect to MQTT server to retrieve new ip.");
 
@@ -331,4 +291,57 @@ void gpsreconnect()
     delay(5000);
     mqttclient.loop();
   }
+}
+
+IPAddress ip_from_str(String ipstr)
+{
+  int a[4];
+  int i1 = 0;
+  int i2 = 0;
+  for (int i = 0; i < 4; i++)
+  {
+    i2 = ipstr.indexOf(".", i1);
+    if (i2 == -1)
+      i2 = ipstr.length();
+    a[i] = ipstr.substring(i1, i2).toInt();
+    i1 = i2 + 1;
+  }
+  return IPAddress(a[0], a[1], a[2], a[3]);
+}
+
+void loraData()
+{
+  display.clear();
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  display.setFont(ArialMT_Plain_10);
+  display.drawString(0, 15, "Received " + packSize + " bytes");
+  display.drawStringMaxWidth(0, 26, 128, packet);
+  display.drawString(0, 40, "SF: " + String(SF, DEC));
+  display.drawString(0, 0, rssi);
+  display.display();
+  Serial.println(rssi);
+}
+
+void displaymsg(String msg)
+{
+  display.clear();
+  display.setTextAlignment(TEXT_ALIGN_LEFT);
+  display.setFont(ArialMT_Plain_10);
+  display.drawString(0, 0, "LoRa module connecting.");
+  display.drawString(0, 15, "Please wait.");
+  display.drawStringMaxWidth(0, 26, 128, msg);
+  display.display();
+}
+
+void cbk(int packetSize)
+{
+  packet = "";
+  packSize = String(packetSize, DEC);
+  for (int i = 0; i < packetSize; i++)
+  {
+    packet += (char)LoRa.read();
+  }
+  rssi = "RSSI " + String(LoRa.packetRssi(), DEC);
+  rssi_n = LoRa.packetRssi();
+  loraData();
 }
